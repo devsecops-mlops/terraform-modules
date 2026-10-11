@@ -13,6 +13,7 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 !*.example.tfvars
+!environments/**/*.tfvars
 
 # Ignore override files as they are usually used only locally
 override.tf
