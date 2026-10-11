@@ -1,0 +1,109 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)-terraform-ci
+
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  TERRAFORM_VERSION: '1.9.5'
+  TFLINT_VERSION: 'v0.53.0'
+
+stages:
+  - stage: Terraform_Quality_Checks
+    displayName: 'Terraform Quality & Validation'
+    jobs:
+      - job: Format_and_Lint
+        displayName: 'terraform fmt & tflint'
+        steps:
+          - task: Bash@3
+            displayName: 'Install Terraform'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Installing Terraform $(TERRAFORM_VERSION)..."
+                wget -q https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+                unzip -q terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+                sudo mv terraform /usr/local/bin/
+                terraform -version
+
+          - task: Bash@3
+            displayName: 'Install TFLint'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Installing TFLint $(TFLINT_VERSION)..."
+                curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+                tflint --version
+
+          - task: Bash@3
+            displayName: 'Check terraform fmt'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Checking Terraform format across all files..."
+                terraform fmt -check -recursive -diff
+
+          - task: Bash@3
+            displayName: 'Run TFLint'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Initializing TFLint plugins..."
+                tflint --init
+                echo "Running TFLint recursively..."
+                tflint --recursive --format=compact
+
+      - job: Validate_Modules
+        displayName: 'terraform init & validate'
+        steps:
+          - task: Bash@3
+            displayName: 'Install Terraform'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Installing Terraform $(TERRAFORM_VERSION)..."
+                wget -q https://releases.hashicorp.com/terraform/$(TERRAFORM_VERSION)/terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+                unzip -q terraform_$(TERRAFORM_VERSION)_linux_amd64.zip
+                sudo mv terraform /usr/local/bin/
+                terraform -version
+
+          - task: Bash@3
+            displayName: 'Run terraform init & validate across modules'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+                echo "Discovering all Terraform directories..."
+                TARGET_DIRS=$(find . -maxdepth 3 -name "*.tf" -not -path "*/.*/*" -exec dirname {} \; | sort -u)
+
+                FAILED=0
+                for dir in $TARGET_DIRS; do
+                  echo "=================================================="
+                  echo "Validating: $dir"
+                  echo "=================================================="
+                  (
+                    cd "$dir"
+                    terraform init -backend=false
+                    terraform validate
+                  ) || {
+                    echo "Validation failed for $dir"
+                    FAILED=1
+                  }
+                done
+
+                if [ $FAILED -ne 0 ]; then
+                  echo "One or more Terraform directories failed validation."
+                  exit 1
+                fi
+                echo "All Terraform configurations validated successfully!"
