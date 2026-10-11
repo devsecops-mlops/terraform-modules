@@ -1,0 +1,19 @@
+output "id" {
+  value       = azurerm_firewall.fw.id
+  description = "The ID of the Azure Firewall."
+}
+
+output "name" {
+  value       = azurerm_firewall.fw.name
+  description = "The name of the Azure Firewall."
+}
+
+output "public_ip_address" {
+  value       = azurerm_public_ip.fw_pip.ip_address
+  description = "The Public IP address of the Azure Firewall."
+}
+
+output "private_ip_address" {
+  value       = azurerm_firewall.fw.ip_configuration[0].private_ip_address
+  description = "The private IP address of the Azure Firewall."
+}
